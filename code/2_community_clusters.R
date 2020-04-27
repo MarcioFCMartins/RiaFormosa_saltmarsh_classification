@@ -8,30 +8,27 @@ library(readxl)   # Read xlsx
 library(raster)   # Tools to handle rasters
 library(dplyr)    # Data wrangling
 library(tidyr)    # Data wrangling
-library(MMartins) # Custom functions
 library(sf)       # Spatial feature manipulation 
 library(vegan)    # Ecology analysis functions - for bray curtis distances
 
 options(stringsAsFactors = FALSE)
 
-source("./4_code/1_draw_quadrats.R")
-
-# Load data ---------------------------------------------------------------
 # Proj4 string for CRS PT-TM06/ETRS89
 pt_crs <- "+proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs "
 # Proj4 string for CRS WGS84
 wgs84_crs <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
 
+# Load data ---------------------------------------------------------------
+quadrats <- st_read("./outputs/quadrats_raw/quadrats_raw.gpkg")
 
 # Add vegetation presence to individual quadrats --------------------------
-
 # Load a wide format presence matrix
-sheets <- excel_sheets("./3_data/clean/saltmarsh_cover/ria_cover_matrices.xlsx")
+sheets <- excel_sheets("./data/saltmarsh_cover/ria_cover_matrices.xlsx")
 
 presence_wide <- data.frame()
 for(i in 1:length(sheets)){
   sheet <- sheets[i]
-  matrix <- read_xlsx("./3_data/clean/saltmarsh_cover/ria_cover_matrices.xlsx",
+  matrix <- read_xlsx("./data/saltmarsh_cover/ria_cover_matrices.xlsx",
                       sheet = sheet)
   matrix[,-1] <- replace(x = matrix[,-1], list = matrix[,-1] > 0, values = 1)
 
@@ -72,10 +69,12 @@ vegetated_matrices <- presence_wide %>%
 unvegetated_matrices <- presence_wide %>%
   filter(unvegetated == 1)
 
-# Get pairwise bray curtis distances 
+# Get pairwise Bray-Curtins binary distances (AKA Sorensen index)
 bray_distances <- vegdist(vegetated_matrices[,c(1:27)],
-                          method = "bray")
+                          method = "bray",
+                          binary = TRUE)
 
+# Some references for usage of clustering:
 # Cluster. Ward's linkage was used based on 
 # "Robustness of three hierarchical agglomerative clustering 
 # techniques for ecological data" - See more references for what might be appropriate
@@ -89,7 +88,7 @@ bray_distances <- vegdist(vegetated_matrices[,c(1:27)],
 # "Multivariate Analysis of Ecological Communities in R: vegan tutorial"; Chapter 6
 
 # SELECT NUMBER OF CLUSTERS
-cluster_n <- 3
+cluster_n <- 4
 
 dendrogram <- hclust(bray_distances, method = "ward.D")
 
@@ -104,30 +103,11 @@ unvegetated_matrices <- unvegetated_matrices %>%
 
 presence_wide <- rbind(vegetated_matrices, unvegetated_matrices)
 
-presence_polygons <- quadrat_polygons %>%
+quadrats_spp <- quadrats %>%
   left_join(presence_wide, by = c("transect_id", "quad_index")) %>%
   arrange(transect_id, quad_index)
 
-# Add elevation information to the quadrats -------------------------------
-
-terrain <- raster::brick("D:/Documentos/CCMAR/Resources&Tools/LIDAR bathymetry/dem_slope_aspect_flowdir.tif") %>%
-  raster::subset(subset = c(1,2)) # Only keep dem and slope
-names(terrain) <- c("dem", "slope")
-
-# Extract the elevation value at the centroid of each quadrat, with bilinear interpolation
-elevations <- raster::extract(terrain, st_centroid(presence_polygons))
-
-presence_polygons <- cbind(presence_polygons, elevations)
-
-
-
 # Save the final quadrats as shapefiles -----------------------------------
+st_write(quadrats_spp,
+         "./outputs/quadrats_species/quadrats_species.gpkg")
 
-# st_write(quadrat_polygons, 
-#          "./5_outputs/quadrat_polygons/quadrat_polygons.shp",
-#          delete_dsn = TRUE)
-# 
-# write.csv2(names(quadrat_polygons),
-#            "./5_outputs/quadrat_polygons/column_names.csv")
-
-rm(list=ls()[!ls() %in% c("presence_polygons")])

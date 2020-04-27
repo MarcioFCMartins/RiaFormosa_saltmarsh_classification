@@ -13,44 +13,37 @@ library(purrr) # Functional programming tools
 
 options(stringsAsFactors = FALSE)
 
-source("./4_code/z_helper_functions.R")
+source("./code/helper_functions.R")
 # Load data ---------------------------------------------------------------
 # Proj4 string for CRS PT-TM06/ETRS89
 pt_crs <- "+proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs "
 # Proj4 string for CRS WGS84
 wgs84_crs <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
 
-# Transect lengths
-saltmarsh_lengths <- read_xlsx("./3_data/clean/monipor_clean_data.xlsx",
-  sheet = "saltmarsh_summary"
-) %>%
-  dplyr::filter(water_system == "Ria Formosa") %>%
-  dplyr::select(transect_id, name, length)
-
-# Start and end points of each transect
-points <- read_xlsx("./3_data/clean/monipor_clean_data.xlsx",
+# Start and end point coordinates of each transect
+points <- read_xlsx("./data/monipor_clean_data.xlsx",
   sheet = "saltmarsh_data"
 ) %>%
   dplyr::filter(water_system == "Ria Formosa") %>%
   st_as_sf(coords = c("longitude", "latitude"), crs = wgs84_crs) %>%
   st_transform(crs = pt_crs)
 
+# Transect lengths
+saltmarsh_lengths <- read_xlsx("./data/monipor_clean_data.xlsx",
+  sheet = "saltmarsh_summary"
+) %>%
+  dplyr::filter(water_system == "Ria Formosa") %>%
+  dplyr::select(transect_id, name, length)
 
-transect_info <- read_xlsx("./3_data/clean/monipor_clean_data.xlsx",
+# Identifying information for individual trasects
+transect_info <- read_xlsx("./data/monipor_clean_data.xlsx",
   sheet = "saltmarsh_data"
 ) %>%
   dplyr::filter(water_system == "Ria Formosa", start_end == "Start") %>%
   dplyr::select(1:6)
+
 # Get transect orientation ------------------------------------------------
-# https://stackoverflow.com/questions/1897704/angle-between-two-vectors-in-r/24999820
-# https://www.math.uh.edu/~jmorgan/Math6397/day13/LinearAlgebraR-Handout.pdf - page 5
 
-# For this to work, I translate the transect vector to the origin
-# (i.e. calculate delta x and delta y)
-
-# I then create a second vector b, with a y of 1 and x of zero (aka North)
-
-# The angle between these 2 vectors is then obtained
 
 # Reshape data so the x and y of start and end points are individual columns
 orientations <- points %>%
@@ -115,7 +108,10 @@ transect_geometry <- transect_geometry %>%
   st_as_sf(crs = pt_crs)
 
 #  Move the coordinates to columns
-transect_geometry <- cbind(transect_geometry, st_coordinates(transect_geometry)) %>%
+transect_geometry <- cbind(
+  transect_geometry,
+  st_coordinates(transect_geometry)
+) %>%
   st_drop_geometry()
 
 # Break transects into segments (see helper function)
@@ -140,7 +136,7 @@ quadrat_points <- do.call(rbind, quadrat_points) %>%
 
 
 # Create polygons for quadrats --------------------------------------------
-quadrat_polygons <- quadrat_points %>%
+quadrats <- quadrat_points %>%
   cbind(st_coordinates(quadrat_points)) %>%
   st_drop_geometry() %>%
   left_join(orientations) %>%
@@ -156,4 +152,9 @@ quadrat_polygons <- quadrat_points %>%
     quad_index, geometry
   )
 
-rm(list = ls()[ls() != c("quadrat_polygons")])
+
+# Save the quadrats polygons as GeoPackage - like a modern shapefile 
+# In my case, it does not limit number of characters for a feature name
+st_write(
+  quadrats,
+  "./outputs/quadrats_raw/quadrats_raw.gpkg")
