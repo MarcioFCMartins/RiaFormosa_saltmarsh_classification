@@ -342,16 +342,15 @@ dev.off()
 
 ## Improvements for future works
 
-### New machine learning frameworks
-
-The initial work was performed using *caret* for model training and
-performance checking. However, *caret* is now a deprecated (albeit still
-functional) package. Its replacement is the *tidymodels* ecosystem and
-packages therin. Another promising package ecosystem that has been
-released recently is the *mlr3* (which replaces *mlr*). I have been
-wanting to learn both of these to decide which framework to learn, and
-decided this project is the best time for that. Both of these are still
-in development.
+**this whole area is a very initial draft** \#\#\# New machine learning
+frameworks The initial work was performed using *caret* for model
+training and performance checking. However, *caret* is now a deprecated
+(albeit still functional) package. Its replacement is the *tidymodels*
+ecosystem and packages therin. Another promising package ecosystem that
+has been released recently is the *mlr3* (which replaces *mlr*). I have
+been wanting to learn both of these to decide which framework to learn,
+and decided this project is the best time for that. Both of these are
+still in development.
 
 Learning the *tidymodels* ecosystem seems easier for me. It’s based on
 tidy data format, functional programming and much in line with other
@@ -367,9 +366,23 @@ splitting and model training/selection using both of these ecosystems.
 In order to work with larger-than-memory rasters, I used a custom
 approach: split the raster into . While it did work, it doesn’t scale
 too well and suffers from many downsides (too slow, inneficient data
-storage format). I implemented a tiling system (based on this talk - ADD
+storage format). I used a tiling system (based on this talk - ADD
 REFERENCE, LARGER THAN MEMORY RASTER HANDLING FORM THE RGIS WORKSHOP)
-which can be used to read in tiles one by one and can be used to save
-.rds files for speed. More testing is needed for optimization.
+which can be used to read in tiles one by one or, if this process needs
+to be repeated, can be used to save .rds files for speed. More testing
+is needed for optimization. See an example of
 
-### Object oriented classification
+> TODO: look into using hashes for filenames so that repeated tiles are
+> never saved again. Add a function that skips tiles where all cells are
+> NA
+
+You can see an example of the result of this tiling system below. Also,
+some of my attempts at image processing, contrast enhancing and image
+segmentation.
+
+``` r
+source("./code/4_saltmarsh_masking_OBIA.R")
+```
+
+![](README_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-1-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-1-3.png)<!-- -->
+\#\#\# Object oriented classification
