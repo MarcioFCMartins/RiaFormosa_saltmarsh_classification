@@ -55,6 +55,12 @@ coordinate reference systems.
 pt_crs <- "+proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs "
 # Proj4 string for CRS WGS84
 wgs84_crs <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
+
+# Bounding box for example area that is used in plots
+plot_ext <- raster::extent(
+  matrix(c(20424.21, 22854.12,-300130.5, -298653.6),
+         nrow = 2, byrow = TRUE)
+)
 ```
 
 ## Estimating quadrat positions
@@ -109,7 +115,8 @@ found in the supratidal area, when saltamarsh started to transition into
 dunes.
 
 ``` r
-spp_quadrats <- st_read("./outputs/quadrats_species/quadrats_species.gpkg")
+spp_quadrats <- st_read("./outputs/quadrats_species/quadrats_species.gpkg") %>%
+  filter(cluster != "unvegetated")
 ```
 
     ## Reading layer `quadrats_species' from data source `C:\Users\marci\OneDrive - Universidade do Algarve\04_others\RiaFormosa_saltmarsh_classification\outputs\quadrats_species\quadrats_species.gpkg' using driver `GPKG'
@@ -122,7 +129,6 @@ spp_quadrats <- st_read("./outputs/quadrats_species/quadrats_species.gpkg")
 ``` r
 presence_in_cluster <- spp_quadrats[,c(8:34, 36)] %>%
   st_drop_geometry() %>%
-  filter(cluster != "unvegetated")%>%
   gather(key = "species", value = "presence", 1:27) %>%
   group_by(cluster, species) %>%
   summarise(prop_presences = sum(presence)/n()) %>%
@@ -195,7 +201,7 @@ the available resolution. Allowing interpolation to be used should allow
 for a better estimation of the quadrat’s true properties.
 
 ``` r
-training_features <- st_read("./outputs/quadrats_train_features/quadrats_train_features.gpkg") %>%
+quadrat_features <- st_read("./outputs/quadrats_train_features/quadrats_train_features.gpkg") %>%
   st_drop_geometry() %>%
   mutate(station = group_indices(., water_body, site_nr)) %>%
   # Station 10 has some quadrats that do not onverlay our raster
@@ -217,7 +223,7 @@ training_features <- st_read("./outputs/quadrats_train_features/quadrats_train_f
     ## proj4string:    +proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs
 
 ``` r
-ggplot(training_features) +
+ggplot(quadrat_features) +
   geom_density(
     aes(x = value, fill = cluster),
     alpha = 0.7) +
@@ -252,4 +258,118 @@ are very similar and might be hard to distinguish.
 
 ### Model selection
 
+Before selecting any model, we have to decide on a performance measure.
+As seen in Figure 3, the classes are not balanced. Cluster 3 represents
+approximately 50% of the samples, despite the existence of 4 classes. I
+could oversample or undersample to deal with this. However,
+
+``` r
+ggplot(spp_quadrats) +
+  geom_bar(aes(x = cluster, fill = cluster)) +
+  scale_fill_brewer(
+    type = "qual",
+    palette = "Set1"
+  ) +
+  theme_bw()
+```
+
+![](README_files/figure-gfm/classes-1.png)<!-- -->
+
+## Saltmarsh masking
+
+While we have features for the desired saltmarsh communities, we do not
+have any data for non-saltmarsh zones. This means that if we apply our
+model to our full data-set, all of the Ria Formosa will be classified as
+a saltmarsh community (which is not true, as there are dunes, water
+channels, seagrass meadows, etc).
+
+There were 2 obvious approaches to working around this issue: 1.
+Supervised - Select areas to collect training data for non-saltmarsh
+areas and add those classes to our model 2. Unsupervised - Classify all
+of the Ria into similar areas and then, manually, exclude those which
+are clearly not saltmarsh.
+
+Approach 1 would probably have been more rigorous, but I decided that
+approach 2 could be easier to do quality checks on and, most of all,
+take much less time.
+
+So, to create the saltmarsh mask, I initially excluded all pixels with
+an NDVI value below a threshhold of **X**, as these were clearly water
+channels. Then, I applied k-means to the individual pixels, using all
+available predictors. I then loaded that information into QGIS and went
+over my study area, noting which clusters represented saltmarsh. There
+were some “loose” pixels, especially near the edge of the channels. I
+drew polygons, manually, covering those and used those polygons as an
+aditional mask. After all cleanup, I had a single-layer raster with 1
+values for pixels over saltmarsh and 0 for non-saltmarsh. This mask was
+then applied to the full raster file, and all data outside of marshes
+was removed.
+
+> TODO: Change the k-means clustering from a pixel-based to an
+> object-based approach. This would reduce the noise in the
+> classification and avoid the issues with the “rogue” pixels.
+
+``` r
+clusters <- raster::raster("./outputs/saltmarsh_mask/ria_clusters-20all.tif")
+mask2 <- raster::raster("./outputs/saltmarsh_mask/saltmarsh_clusters.tif")
+
+par(mfrow = c(2,1), 
+    mai = c(0.5, 0.5, 0.2,0))
+raster::plot(
+  clusters, 
+  col = rainbow(20), 
+  ext = plot_ext,
+  main = "All clusters created by k-means",
+  legend = FALSE)
+raster::plot(
+  mask2, 
+  col = "black", 
+  ext = plot_ext,
+  main = "Areas classified as saltmarsh (black = saltmarsh)",
+  legend = FALSE)
+```
+
+![](README_files/figure-gfm/mask-1.png)<!-- -->
+
+``` r
+dev.off()
+```
+
+    ## null device 
+    ##           1
+
 ## Prediction saltmarsh communities
+
+## Improvements for future works
+
+### New machine learning frameworks
+
+The initial work was performed using *caret* for model training and
+performance checking. However, *caret* is now a deprecated (albeit still
+functional) package. Its replacement is the *tidymodels* ecosystem and
+packages therin. Another promising package ecosystem that has been
+released recently is the *mlr3* (which replaces *mlr*). I have been
+wanting to learn both of these to decide which framework to learn, and
+decided this project is the best time for that. Both of these are still
+in development.
+
+Learning the *tidymodels* ecosystem seems easier for me. It’s based on
+tidy data format, functional programming and much in line with other
+tidyverse packages, which has been the workhorse of my R usage.
+
+However, *mlr3* seems quite interesting as well, even it only because I
+have wanted to learn object-oriented programming for a while now. I have
+(or will have) alternative scripts which try to implement the data
+splitting and model training/selection using both of these ecosystems.
+
+### Tiling system
+
+In order to work with larger-than-memory rasters, I used a custom
+approach: split the raster into . While it did work, it doesn’t scale
+too well and suffers from many downsides (too slow, inneficient data
+storage format). I implemented a tiling system (based on this talk - ADD
+REFERENCE, LARGER THAN MEMORY RASTER HANDLING FORM THE RGIS WORKSHOP)
+which can be used to read in tiles one by one and can be used to save
+.rds files for speed. More testing is needed for optimization.
+
+### Object oriented classification
