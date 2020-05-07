@@ -338,19 +338,22 @@ dev.off()
     ## null device 
     ##           1
 
-## Prediction saltmarsh communities
+## Creating predictions map
 
 ## Improvements for future works
 
-**this whole area is a very initial draft** \#\#\# New machine learning
-frameworks The initial work was performed using *caret* for model
-training and performance checking. However, *caret* is now a deprecated
-(albeit still functional) package. Its replacement is the *tidymodels*
-ecosystem and packages therin. Another promising package ecosystem that
-has been released recently is the *mlr3* (which replaces *mlr*). I have
-been wanting to learn both of these to decide which framework to learn,
-and decided this project is the best time for that. Both of these are
-still in development.
+*this whole area is a very WIP draft*
+
+### New machine learning frameworks
+
+The initial work was performed using *caret* for model training and
+performance checking. However, *caret* is now a deprecated (albeit still
+functional) package. Its replacement is the *tidymodels* ecosystem and
+packages therin. Another promising package ecosystem that has been
+released recently is the *mlr3* (which replaces *mlr*). I have been
+wanting to learn both of these to decide which framework to learn, and
+decided this project is the best time for that. Both of these are still
+in development.
 
 Learning the *tidymodels* ecosystem seems easier for me. It’s based on
 tidy data format, functional programming and much in line with other
@@ -363,26 +366,104 @@ splitting and model training/selection using both of these ecosystems.
 
 ### Tiling system
 
-In order to work with larger-than-memory rasters, I used a custom
-approach: split the raster into . While it did work, it doesn’t scale
-too well and suffers from many downsides (too slow, inneficient data
-storage format). I used a tiling system (based on this talk - ADD
-REFERENCE, LARGER THAN MEMORY RASTER HANDLING FORM THE RGIS WORKSHOP)
-which can be used to read in tiles one by one or, if this process needs
-to be repeated, can be used to save .rds files for speed. More testing
-is needed for optimization. See an example of
+Iiling our image can allow to speed up work with larger-than-memory
+rasters. Breaking up a single raster into smaller ones that are all
+processable in memory, or simply processed in parallel can speed up your
+workflow tremendously.
 
-> TODO: look into using hashes for filenames so that repeated tiles are
-> never saved again. Add a function that skips tiles where all cells are
-> NA
+Implementing custom tiling solutions is relatively simple, but the
+package
+[*satelliteTools*](https://github.com/environmentalinformatics-marburg/satelliteTools)
+already implemented tools to do so, which might be more sofisticated
+than a custom implementation.
 
-You can see an example of the result of this tiling system below. Also,
-some of my attempts at image processing, contrast enhancing and image
-segmentation.
+> Add an example of the result of this tiling system below.
+
+#### Parallelization
+
+Processing a raster in parallel can make a massive difference in speed.
+As an example, running a linear contrast enhancement on the full Ria
+Raster used here takes approximately 15 minutes. When ran it parallel (7
+cores), time went down to under 1.5 minute (this sounded too good to be
+true, but testing differences between rasters returned zero for all
+cells - results are equal)
+
+**There are 3 main ways to parallelize raster operations:** 1. Let
+raster do it for you. Check the raster documentation (section cluster)
+to see which funtions have this function implemented. 2. The
+raster::clusteR function, which allows you to pass a function that will
+be ran in parallel. This is very easy to use, for example, to
+parallelize cell-wise operations (e.g. calculate the sum of all cells or
+divide all cells by fixes values). 3. The foreach package, which allows
+you to loop over the layers of a raster in parallel. I prefer this
+method for raster-wise or layer-wise operations. In contrast
+enhancement, for example, I need the quantiles and maximums of each
+layer, which can’t be obtained when looping over individual cells with
+clusteR (or I could not figure it out, not even with pre-calculating
+them and passing them as arguments).
+
+Parallel processing, however, can’t fix every slow task. As a general
+rule, if your raster is very large and your operations are very
+repeatable, it will probably benefit from it.
+
+``` r
+library(raster)         # Raster data methods
+library(tidyverse) 
+library(sf)
+library(doParallel)
+library(foreach)
+
+# Custom linear stretch function - the one implemented in raster
+# fails when applied to large rasters
+source("./code/obsolete/contrast_stretch.R")
+
+# Load raw raster
+raw <- raster::brick("./data/raster_data/raster_satellite/sat_clip.tif")
+names(raw) <- c("r", "g", "b", "nir")
+
+
+# Run stretching in single core, ~ 15 minutes
+raster <- contrast_stretch(
+    raw,
+    filename = "D:/Desktop/testrasters/custom_sc.tif"
+)
+
+
+# Run stretching in parallel - ~1.5 minutes
+cl <- makeCluster(detectCores() -1)
+registerDoParallel(cl)
+Sys.sleep(1)
+message("Custom MC")
+raster <- foreach(i=1:nlayers(raw),
+             .packages = c("raster")) %dopar%
+    contrast_stretch(
+        x = raw[[i]])
+raster <- stack(raster)
+writeRaster(
+    raster,
+    filename = "D:/Desktop/testrasters/custom_mc.tif"
+)
+```
+
+#### Other resources
+
+More examples and resources on this:
+<https://www.gis-blog.com/increasing-the-speed-of-raster-processing-with-r-part-13/>
+<https://www.gis-blog.com/increasing-the-speed-of-raster-processing-with-r-part-23-parallelisation/>
+<https://www.gis-blog.com/increasing-the-speed-of-raster-processing-with-r-part-33-cluster/>
+[Computing with large rasters in R: tiling, parallelization,
+optimization](https://opengeohub.org/lesson/computing-large-rasters-r-tiling-parallelization-optimization)
+[Machine learning for spatial
+data](https://opengeohub.org/machine-learning-spatial-data)
+
+### Object oriented classification
 
 ``` r
 source("./code/4_saltmarsh_masking_OBIA.R")
 ```
 
-![](README_files/figure-gfm/unnamed-chunk-1-1.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-1-2.png)<!-- -->![](README_files/figure-gfm/unnamed-chunk-1-3.png)<!-- -->
-\#\#\# Object oriented classification
+### Satellite data sources
+
+  - <http://earsc.org/news/irs-data-now-available-free-of-charge-to-scientific-users>
+    provides high quality data for scientific purposes, for free, if a
+    grant is submited (2017 announcement, check if still true)
