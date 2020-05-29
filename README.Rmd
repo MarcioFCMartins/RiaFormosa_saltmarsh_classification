@@ -223,7 +223,7 @@ The best model ended up being a support vector machine (using a linear kernel).
 
 After having a trained model, the full raster was split into horizontal segments. These segments were loaded into memory individually, converted to a data.frame and fed into *caret*'s predict function. These predictions were then converted back into a raster, resulting in a prediction map of the expected vegetation communities (Figure 4).
 
-```{r classification_map, fig.cap = "Figure 4", fig.height=5, fig.width = 10}
+```{r classification_map, fig.cap = "Figure 4", fig.height=7, fig.width = 10}
 predictions <- raster::raster("./outputs/saltmarsh_classified/saltmarsh_classification_v2.tif")
 
 raster::plot(
