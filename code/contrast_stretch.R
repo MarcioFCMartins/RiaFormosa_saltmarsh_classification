@@ -1,4 +1,3 @@
-# obsolete - after 2 days of implemention this I realized raster::stretch exists
 # Function to perform contrast enhancement in a satellite image
 # Uses linear stretching
 # Algorithm from:
@@ -14,6 +13,7 @@
 # All scaling, stretching and clipping is done in one raster::calc call 
 # Not ran in parallel. To run in parallel, apply to individual layers using foreach
 
+# TODO: Return values in original scale, rather than 0-255
 contrast_stretch <- function(
     x, 
     quantiles = c(0.02, 0.98), 

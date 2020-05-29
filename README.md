@@ -8,13 +8,8 @@ explaining the whole process Re-factor code and add some extra comments
 
 ## Summary
 
-Here I summarize the methods used during my work at mapping the
-saltmarsh communities in the Ria Formosa lagoon (South Portugal).
-
-For this project, transects were performed along saltmarsh fringes. A
-1x1 m quadrat was overlaid across the entire transect and species
-presences were recorded. These quadrats were then clustered into one of
-3 possible saltmarsh communities.
+This repository summarizes the methods used during my work at mapping
+the saltmarsh communities in the Ria Formosa lagoon (South Portugal).
 
 Satellite imagery and LIDAR data were combined and used to extract the
 spectral signatures and preferred elevation of each saltmarsh community.
@@ -28,6 +23,10 @@ of the code required is quite extensive, I do not include all of the
 code in this README. In particular, the data pre-processing has been
 glossed over. However, I refer to the script files that go over that
 specific task, and you can find them in the *code* folder.
+
+Additionally, there is a whole section on methods that can assist me in
+future work to improve speed or capacity to handle larger than memory
+data.
 
 ## Settings and global variables required
 
@@ -44,17 +43,20 @@ library(vegan)    # Ecology analysis functions - for bray curtis distances
 library(purrr)    # Functional programing
 library(ggplot2)  # Grammar of graphics - plotting
 library(scales)   # Function to format scales for visualization
-library(forcats)  # Tools to modifying factor levels (ploting purposes)
+library(forcats)  # Tools to modifying factor levels (plotting purposes)
+library(RColorBrewer) # Color palletes
 ```
 
-I also need the proj4 strings describing the WGS84 and PT-TM06/ETRS89
-coordinate reference systems.
+I also need the references for WGS84 and PT-TM06/ETRS89 coordinate
+reference systems, since part of our information was recorded in WGS84.
+However, working with a projected CRS will be better for accurate
+distances. So, all of our data will be converted to PT-TM06/ETRS89.
 
 ``` r
-# Proj4 string for CRS PT-TM06/ETRS89
-pt_crs <- "+proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs "
-# Proj4 string for CRS WGS84
-wgs84_crs <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
+# Coordinate Reference Systems - EPSG integers
+# https://spatialreference.org/
+pt_crs <- 3763     # ETRS89/ PT-TM06
+wgs84_crs <- 4326  # WGS84
 
 # Bounding box for example area that is used in plots
 plot_ext <- raster::extent(
@@ -63,8 +65,10 @@ plot_ext <- raster::extent(
 )
 ```
 
-## Estimating quadrat positions
+## Extracting training points’ positions
 
+Transects were performed along saltmarsh fringes. A 1x1 m quadrat was
+overlaid along the entire transect and species presences were recorded.
 During field work, we recorded the starting and ending points of the
 transects in the GPS. However, for properly extracting the visual and
 terrain properties, we must have centroids for each quadrat.
@@ -76,15 +80,11 @@ orientation, so that one corner of the quadrat is at the given point
 
 > You can find them in helper\_functions.R
 
-With these tools I can, having only the start and end points of the
-transects, estimate the center position for all recorded quadrats. While
-I could have saved the quadrat centroids directly, I decided to save the
-entire quadrat (for visualization and because it helped immensely in
-debugging).
+With these tools I can estimate the center position for all recorded
+quadrats from the start and end points of each transect (after some data
+wrangling).
 
-With those basic tools, I all I had to do was load the transect
-information, shape it into the required format and then apply them. \>
-Script 1\_draw\_quadrats.R
+> Script 1\_draw\_quadrats.R
 
 The output of this was a shapefile where each individual quadrat is a
 polygon. Those polygons have all the identifying information required to
@@ -95,21 +95,19 @@ connect them to the transect where they belong.
 Using individual species data to classify the saltmarshes would lead to
 very noisy estimates. However, we know that saltmarsh species tend to
 form communities (mostly based around their hydroperiod). I decided to
-use hierarchical clustering to create clusters, based on the Sørensen
-index (AKA the binary Bray-Curtis index). These clusters (or
-communities) will be our target variable (what we want to predict)
+use hierarchical clustering, based on the Sørensen index (AKA the binary
+Bray-Curtis index). These clusters (or communities) will be our target
+variable.
 
 > Scrit 2\_community\_cluster.R
 
 I ended up opting for using 4 clusters (Figure 1), as it seemed to make
 the most sense based on what we had observed in the field. One community
-comprised only of *Spartina maritima*, the pionner species, which tended
-to form the first frienge near the water (cluster 1). Oftentimes, *S.
+comprised only of *Spartina maritima*, a pioneer species, which tended
+to form the first friege near the water (cluster 1). Oftentimes, *S.
 maritima* is found with *Sarcocornia perennis*, forming the cluster 2.
-Cluster 3 is formed of species that tend to be even higher in the
-intertidal (or even in the supratidal), both *Sarcocornia* species as
-well as *Halimione portulacoides*. Some *Arthrocnemum macrostachyum* was
-also common, although this tended to be in the limits of the intertidal.
+Cluster 3 is formed by both *Sarcocornia* species, *Halimione
+portulacoides* and, to a lesser extent, *Arthrocnemum macrostachyum*.
 Cluster 4 is composed of the more bush-like species and was generally
 found in the supratidal area, when saltamarsh started to transition into
 dunes.
@@ -119,12 +117,12 @@ spp_quadrats <- st_read("./outputs/quadrats_species/quadrats_species.gpkg") %>%
   filter(cluster != "unvegetated")
 ```
 
-    ## Reading layer `quadrats_species' from data source `C:\Users\marci\OneDrive - Universidade do Algarve\04_others\RiaFormosa_saltmarsh_classification\outputs\quadrats_species\quadrats_species.gpkg' using driver `GPKG'
+    ## Reading layer `quadrats_species' from data source `C:\Users\marci\OneDrive - Universidade do Algarve\03_others\RiaFormosa_saltmarsh_classification\outputs\quadrats_species\quadrats_species.gpkg' using driver `GPKG'
     ## Simple feature collection with 1538 features and 36 fields
     ## geometry type:  POLYGON
     ## dimension:      XY
     ## bbox:           xmin: 9770.353 ymin: -299877.8 xmax: 46398.95 ymax: -281468.5
-    ## proj4string:    +proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs
+    ## projected CRS:  unnamed
 
 ``` r
 presence_in_cluster <- spp_quadrats[,c(8:34, 36)] %>%
@@ -155,7 +153,7 @@ presence_in_cluster %>%
       fontface = "bold") +
     scale_fill_viridis_c(guide = FALSE) +
     labs(title = "Species presence per cluster",
-         subtitle = "For species with presence above 10% for any cluster",
+         subtitle = "For species with presence above 10% in any cluster",
          y = NULL,
          x = "Cluster") +
     theme_minimal()
@@ -165,34 +163,32 @@ presence_in_cluster %>%
 
 ## Community predictor features
 
-We now have the coordinates for the quadrats and and the target
-variable. To create a predictive model we just need features that help
-identify which kind of community we find in a new site. These will be
-our predictors.
+We now have the coordinates for the quadrats and our target variable. To
+create a predictive model we just need features that help separate our
+target. These will be our predictor features.
 
 Feature selection and engineering can (and often is) a laborsome task
 and of extreme importance for state of the art model performance.
-However, for this work, I did not go deep into this, as the work
-performed here was already stretching my knowledge and skills.
+However, for this work I did not dwell into this component and instead
+opted to let our model training handle all our features.
 
-> Notes: In the future, dwelling into proper feature engeniering is one
-> of my goals, especially since the work we have planned will not have
-> such good data availability. <https://bookdown.org/max/FES/> has a
-> nice overview of typical approaches;
-> <https://nowosad.github.io/post/lsm-bp2/> has implemented many common
-> landscape metrics;
+> Notes: In the future, proper feature engeniering is one of my goals,
+> especially since the work we have planned will not have such good data
+> availability. <https://bookdown.org/max/FES/> has a nice overview of
+> typical approaches; <https://nowosad.github.io/post/lsm-bp2/> has
+> implemented many common landscape metrics;
 > <http://www.seascapemodels.org/rstats/2020/02/08/calculating-distances-in-R.html>
 > distances can be used as proxies for elevation (?) when LIDAR data is
 > not available
 
 The available data for this was: a LIDAR digital elevation model with a
-10 meter resulution (elevation and slope); multispectral raster data
-(bands: Near infrared, Red, Green, Blue) with a 3 meter resolution
-(obtained from planet.com). The one feature engineering I did was
-calculated the normalized difference vegetation index (NDVI). This is
-the most basic index used for analyzing vegetation and is also
-correlated to water content in the soil, both of which are properties I
-except to help separate these communites.
+10 meter resolution; multispectral raster data (bands: Near infrared,
+Red, Green, Blue) with a 3 meter resolution (obtained from planet.com).
+The one feature engineering I did was calculating the normalized
+difference vegetation index (NDVI). This is the most basic index used
+for analyzing vegetation and is also correlated to water content in the
+soil, both of which are properties I except to help separate these
+communities.
 
 The variables at the centroid of each quadrat were extracted from these
 rasters, and upsampled using bilinear interpolation. The interpolation
@@ -215,12 +211,12 @@ quadrat_features <- st_read("./outputs/quadrats_train_features/quadrats_train_fe
   mutate(var = factor(var, levels = c("elev", "slope", "ndvi", "nir", "r", "g", "b")))
 ```
 
-    ## Reading layer `quadrats_train_features' from data source `C:\Users\marci\OneDrive - Universidade do Algarve\04_others\RiaFormosa_saltmarsh_classification\outputs\quadrats_train_features\quadrats_train_features.gpkg' using driver `GPKG'
+    ## Reading layer `quadrats_train_features' from data source `C:\Users\marci\OneDrive - Universidade do Algarve\03_others\RiaFormosa_saltmarsh_classification\outputs\quadrats_train_features\quadrats_train_features.gpkg' using driver `GPKG'
     ## Simple feature collection with 1491 features and 13 fields
     ## geometry type:  POLYGON
     ## dimension:      XY
     ## bbox:           xmin: 9770.353 ymin: -299877.8 xmax: 46398.95 ymax: -281468.5
-    ## proj4string:    +proj=tmerc +lat_0=39.66825833333333 +lon_0=-8.133108333333334 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs
+    ## projected CRS:  unnamed
 
 ``` r
 ggplot(quadrat_features) +
@@ -244,36 +240,11 @@ ggplot(quadrat_features) +
 ![Figure 2](README_files/figure-gfm/features-1.png)
 
 We can see from figure 2 that there are differences in elevation, slope,
-ndvi and blue between our target classes. Separation is, obviously, not
+NDVI and blue between our target classes. Separation is, obviously, not
 perfect but note that we are looking at the univariate distributions of
 these properties, while some of the more complex models will consider
 interactions between them. It’s also quite clear that cluster 1 and 2
 are very similar and might be hard to distinguish.
-
-## Model training and selection
-
-### Data split
-
-### Model tuning
-
-### Model selection
-
-Before selecting any model, we have to decide on a performance measure.
-As seen in Figure 3, the classes are not balanced. Cluster 3 represents
-approximately 50% of the samples, despite the existence of 4 classes. I
-could oversample or undersample to deal with this. However,
-
-``` r
-ggplot(spp_quadrats) +
-  geom_bar(aes(x = cluster, fill = cluster)) +
-  scale_fill_brewer(
-    type = "qual",
-    palette = "Set1"
-  ) +
-  theme_bw()
-```
-
-![](README_files/figure-gfm/classes-1.png)<!-- -->
 
 ## Saltmarsh masking
 
@@ -283,31 +254,25 @@ model to our full data-set, all of the Ria Formosa will be classified as
 a saltmarsh community (which is not true, as there are dunes, water
 channels, seagrass meadows, etc).
 
-There were 2 obvious approaches to working around this issue: 1.
+There were 2 broad approaches to working around this issue: 1.
 Supervised - Select areas to collect training data for non-saltmarsh
 areas and add those classes to our model 2. Unsupervised - Classify all
 of the Ria into similar areas and then, manually, exclude those which
 are clearly not saltmarsh.
 
 Approach 1 would probably have been more rigorous, but I decided that
-approach 2 could be easier to do quality checks on and, most of all,
-take much less time.
+approach 2 could be easier and quicker.
 
-So, to create the saltmarsh mask, I initially excluded all pixels with
-an NDVI value below a threshhold of **X**, as these were clearly water
-channels. Then, I applied k-means to the individual pixels, using all
-available predictors. I then loaded that information into QGIS and went
-over my study area, noting which clusters represented saltmarsh. There
-were some “loose” pixels, especially near the edge of the channels. I
-drew polygons, manually, covering those and used those polygons as an
-aditional mask. After all cleanup, I had a single-layer raster with 1
-values for pixels over saltmarsh and 0 for non-saltmarsh. This mask was
-then applied to the full raster file, and all data outside of marshes
-was removed.
-
-> TODO: Change the k-means clustering from a pixel-based to an
-> object-based approach. This would reduce the noise in the
-> classification and avoid the issues with the “rogue” pixels.
+So, to create the saltmarsh mask, I first used an NDVI threshhold to
+exclude water channels. Then, I applied k-means to the individual
+pixels, using all available predictors. I then loaded that information
+into QGIS and went over my study area, noting which clusters represented
+saltmarsh. There were some “loose” pixels, especially near the edge of
+the channels. I drew polygons covering them and used those polygons as
+an additional mask. After all cleanup, I had a single-layer raster with
+1 values for pixels over saltmarsh and 0 for non-saltmarsh. This mask
+was then applied to the full raster file, and all data outside of
+marshes was removed.
 
 ``` r
 clusters <- raster::raster("./outputs/saltmarsh_mask/ria_clusters-20all.tif")
@@ -329,7 +294,7 @@ raster::plot(
   legend = FALSE)
 ```
 
-![](README_files/figure-gfm/mask-1.png)<!-- -->
+![Figure 3](README_files/figure-gfm/mask-1.png)
 
 ``` r
 dev.off()
@@ -338,11 +303,47 @@ dev.off()
     ## null device 
     ##           1
 
+## Model training and selection
+
+This section will be light on details, but basically: 1. Data was split
+into training and testing datasets 2. Training data was split using
+spatial k-fold cross validation. One fold was created per sampling zone,
+with that zone being excluded. 3. Models were trained
+
+Before selecting any model, we have to decide on a performance measure.
+As seen in Figure 3, the classes are not balanced. Cluster 3 represents
+approximately 50% of the samples, despite the existence of 4 classes. I
+could oversample or undersample to deal with this. However, this would
+leave to lost information. Since the imbalance is not extreme, I instead
+opted by a performance measure that accounts for that: the kappa
+statistic.
+
+The best model ended up being a support vector machine (using a linear
+kernel).
+
 ## Creating predictions map
 
-## Improvements for future works
+After having a trained model, the full raster was split into horizontal
+segments. These segments were loaded into memory individually, converted
+to a data.frame and fed into *caret*’s predict function. These
+predictions were then converted back into a raster, resulting in a
+prediction map of the expected vegetation communities (Figure 4).
 
-*this whole area is a very WIP draft*
+``` r
+predictions <- raster::raster("./outputs/saltmarsh_classified/saltmarsh_classification_v2.tif")
+
+raster::plot(
+  predictions, 
+  col = brewer.pal(4, "Set1"), 
+  ext = plot_ext,
+  main = "Predicted vegetation community",
+  legend = TRUE,
+  breaks = c(0,1,2,3,4))
+```
+
+![Figure 4](README_files/figure-gfm/classification_map-1.png)
+
+## Improvements for future works
 
 ### New machine learning frameworks
 
@@ -459,7 +460,7 @@ data](https://opengeohub.org/machine-learning-spatial-data)
 ### Object oriented classification
 
 ``` r
-source("./code/4_saltmarsh_masking_OBIA.R")
+source("./code/other/object_based_image_analysis_example.R")
 ```
 
 ### Satellite data sources
