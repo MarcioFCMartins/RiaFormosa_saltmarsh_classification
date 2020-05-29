@@ -104,10 +104,12 @@ variable.
 I ended up opting for using 4 clusters (Figure 1), as it seemed to make
 the most sense based on what we had observed in the field. One community
 comprised only of *Spartina maritima*, a pioneer species, which tended
-to form the first friege near the water (cluster 1). Oftentimes, *S.
+to form the first fringe near the water (cluster 1). Oftentimes, *S.
 maritima* is found with *Sarcocornia perennis*, forming the cluster 2.
+
 Cluster 3 is formed by both *Sarcocornia* species, *Halimione
 portulacoides* and, to a lesser extent, *Arthrocnemum macrostachyum*.
+
 Cluster 4 is composed of the more bush-like species and was generally
 found in the supratidal area, when saltamarsh started to transition into
 dunes.
@@ -295,13 +297,6 @@ raster::plot(
 ```
 
 ![Figure 3](README_files/figure-gfm/mask-1.png)
-
-``` r
-dev.off()
-```
-
-    ## null device 
-    ##           1
 
 ## Model training and selection
 
