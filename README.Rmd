@@ -64,9 +64,9 @@ Transects were performed along saltmarsh fringes. A 1x1 m quadrat was overlaid a
 During field work, we recorded the starting and ending points of the transects in the GPS. However, for properly extracting the visual and terrain properties, we must have centroids for each quadrat.  
 
 To do so, I defined custom functions to:
-1. Calculate the orientation of a transect (relative to North)
-2. Break a transect into k points, where k = number of quadrats
-3. Draw a square with defined size and orientation, so that one corner of the quadrat is at the given point
+1. Calculate the orientation of a transect (relative to North) 
+2. Break a transect into k points, where k = number of quadrats 
+3. Draw a square with defined size and orientation, so that one corner of the quadrat is at the given point 
 
 > You can find them in helper_functions.R 
 
@@ -74,17 +74,20 @@ With these tools I can estimate the center position for all recorded quadrats fr
 
 > Script 1_draw_quadrats.R 
 
-The output of this was a shapefile where each individual quadrat is a polygon. Those polygons have all the identifying information required to connect them to the transect where they belong.
+The output of this was a shapefile where each individual quadrat is a polygon. Those polygons have all the identifying information required to connect them to the transect where they belong. 
 
 ## Creating vegetation community clusters
 
-Using individual species data to classify the saltmarshes would lead to very noisy estimates. However, we know that saltmarsh species tend to form communities (mostly based around their hydroperiod). I decided to use hierarchical clustering, based on the Sørensen index (AKA the binary Bray-Curtis index). These clusters (or communities) will be our target variable.
+Using individual species data to classify the saltmarshes would lead to very noisy estimates. However, we know that saltmarsh species tend to form communities (mostly based around their hydroperiod). I decided to use hierarchical clustering, based on the Sørensen index (AKA the binary Bray-Curtis index). These clusters (or communities) will be our target variable. 
 
 > Scrit 2_community_cluster.R
 
-I ended up opting for using 4 clusters (Figure 1), as it seemed to make the most sense based on what we had observed in the field. One community comprised only of *Spartina maritima*, a pioneer species, which tended to form the first friege near the water (cluster 1). Oftentimes, *S. maritima* is found with *Sarcocornia perennis*, forming the cluster 2. 
+I ended up opting for using 4 clusters (Figure 1), as it seemed to make the most sense based on what we had observed in the field. One community comprised only of *Spartina maritima*, a pioneer species, which tended to form the first fringe near the water (cluster 1). Oftentimes, *S. maritima* is found with *Sarcocornia perennis*, forming the cluster 2. 
+
 Cluster 3 is formed by both *Sarcocornia* species, *Halimione portulacoides* and, to a lesser extent, *Arthrocnemum macrostachyum*. 
-Cluster 4 is composed of the more bush-like species and was generally found in the supratidal area, when saltamarsh started to transition into dunes.
+
+Cluster 4 is composed of the more bush-like species and was generally found in the supratidal area, when saltamarsh started to transition into dunes. 
+
 
 ```{r plot_clusters, fig.cap = "Figure 1"}
 spp_quadrats <- st_read("./outputs/quadrats_species/quadrats_species.gpkg") %>%
@@ -202,7 +205,6 @@ raster::plot(
   ext = plot_ext,
   main = "Areas classified as saltmarsh (black = saltmarsh)",
   legend = FALSE)
-dev.off()
 ```
 
 
@@ -221,7 +223,7 @@ The best model ended up being a support vector machine (using a linear kernel).
 
 After having a trained model, the full raster was split into horizontal segments. These segments were loaded into memory individually, converted to a data.frame and fed into *caret*'s predict function. These predictions were then converted back into a raster, resulting in a prediction map of the expected vegetation communities (Figure 4).
 
-```{r classification_map, fig.cap = "Figure 4", fig.height=20, fig.width = 10}
+```{r classification_map, fig.cap = "Figure 4", fig.height=5, fig.width = 10}
 predictions <- raster::raster("./outputs/saltmarsh_classified/saltmarsh_classification_v2.tif")
 
 raster::plot(
